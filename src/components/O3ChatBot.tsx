@@ -62,6 +62,7 @@ What would you like to know or analyze today?`,
 
     setMessages(prev => [...prev, userMessage]);
     const currentInput = inputValue;
+    const currentFile = uploadedFile;
     setInputValue('');
     setIsLoading(true);
 
@@ -72,11 +73,34 @@ What would you like to know or analyze today?`,
         content: msg.content
       }));
 
+      // Prepare request body
+      let requestBody: any = { 
+        message: currentInput,
+        conversationHistory: conversationHistory
+      };
+
+      // If there's an uploaded file, include it in the request
+      if (currentFile) {
+        // Convert file to base64 for transmission
+        const fileContent = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(currentFile);
+        });
+
+        requestBody.file = {
+          name: currentFile.name,
+          type: currentFile.type,
+          size: currentFile.size,
+          content: fileContent
+        };
+
+        // Clear the uploaded file after sending
+        setUploadedFile(null);
+      }
+
       const { data, error } = await supabase.functions.invoke('o3-chat', {
-        body: { 
-          message: currentInput,
-          conversationHistory: conversationHistory
-        }
+        body: requestBody
       });
 
       if (error) {
@@ -128,6 +152,8 @@ Would you like to try your question again?`,
     setTimeout(() => handleSendMessage(), 100);
   };
 
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -153,58 +179,35 @@ Would you like to try your question again?`,
       return;
     }
 
-    // Simulate file processing
-    setIsLoading(true);
-    setUploadProgress(0);
+    // Store the uploaded file and show confirmation message
+    setUploadedFile(file);
+    
+    const fileUploadMessage: Message = {
+      id: Date.now().toString(),
+      type: 'ai',
+      content: `📎 **File Uploaded Successfully!**
 
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          setTimeout(() => {
-            const analysisResult: Message = {
-              id: Date.now().toString(),
-              type: 'ai',
-              content: `🔍 **Meeting Analysis Complete**
+I've received your file: **${file.name}**
 
-**File Processed:** ${file.name}
+I'm here to help you with whatever you need! Please let me know what you'd like me to do with this file:
 
-**Key Themes Identified:**
-• Career development concerns (mentioned 3 times)
-• Workload management issues  
-• Positive feedback on team collaboration
-• Communication style preferences discussed
+• **Analyze** the content and provide insights
+• **Summarize** the key points  
+• **Extract** specific information
+• **Create** action items or recommendations
+• **Generate** a report or summary
+• Or anything else you have in mind!
 
-**Sentiment Analysis:**
-Overall tone: Neutral to Positive (7/10)
-- Moments of concern around workload (timestamps: 5:23, 12:45)
-- Enthusiastic response to collaboration praise (timestamp: 18:30)
-- Constructive tone throughout discussion
+Just type your request and I'll take care of it for you. 😊`,
+      timestamp: new Date(),
+      quickActions: ['Analyze Content', 'Create Summary', 'Extract Key Points', 'Generate Action Items']
+    };
 
-**⚡ Recommended Actions:**
-1. Schedule career development discussion within 2 weeks
-2. Review current project allocation and priorities
-3. Acknowledge team collaboration strengths in writing
-4. Set up monthly check-ins on workload balance
-
-Would you like me to elaborate on any of these points or generate a detailed action plan?`,
-              timestamp: new Date(),
-              isAnalysis: true,
-              quickActions: ['Generate Report', 'Create Action Plan', 'Schedule Follow-up', 'Export Summary']
-            };
-            setMessages(prev => [...prev, analysisResult]);
-            setIsLoading(false);
-            setUploadProgress(0);
-          }, 1000);
-          return 100;
-        }
-        return prev + 20;
-      });
-    }, 300);
+    setMessages(prev => [...prev, fileUploadMessage]);
 
     toast({
       title: "File uploaded successfully",
-      description: "Processing your file for analysis..."
+      description: "Tell me what you'd like me to do with it!"
     });
   };
 
@@ -301,7 +304,7 @@ What would you like to know or analyze today?`,
             <Input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Ask about O3, share transcript, or get insights..."
+              placeholder="Ask about O3, upload a file, or tell me what you'd like to analyze..."
               className="pr-20 rounded-full border-2 focus:border-ring"
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
             />
