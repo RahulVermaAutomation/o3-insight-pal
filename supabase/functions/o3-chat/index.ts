@@ -1,8 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -18,10 +16,6 @@ serve(async (req) => {
     const { message, conversationHistory, file } = await req.json();
     
     console.log('Received request:', { message, hasFile: !!file });
-
-    if (!openAIApiKey) {
-      throw new Error('OpenAI API key not configured');
-    }
 
     // Enhanced system prompt for O3-only conversations
     const systemPrompt = `You are an O3 Assistant - a specialized AI designed EXCLUSIVELY to help with "One-on-One" conversations between employees and managers. 
@@ -59,13 +53,15 @@ Politely say: "I'm specifically designed to help with O3 (One-on-One) meetings a
 Remember: Your sole purpose is to make O3 meetings more effective and strengthen manager-employee relationships.`;
 
     // Build conversation history for context
-    const messages = [
-      { role: 'system', content: systemPrompt }
-    ];
+    let contextualQuery = systemPrompt + '\n\n';
     
     // Add recent conversation history for context
     if (conversationHistory && conversationHistory.length > 0) {
-      messages.push(...conversationHistory.slice(-8)); // Keep last 8 messages
+      contextualQuery += 'Previous conversation context:\n';
+      conversationHistory.slice(-4).forEach((msg: any) => {
+        contextualQuery += `${msg.role}: ${msg.content}\n`;
+      });
+      contextualQuery += '\n';
     }
 
     // Handle file analysis if file is provided
@@ -73,7 +69,6 @@ Remember: Your sole purpose is to make O3 meetings more effective and strengthen
     if (file) {
       // Create a descriptive file context for the AI
       const fileInfo = `
-
 📎 **File Details:**
 - **Name:** ${file.name}
 - **Type:** ${file.type}
@@ -88,30 +83,27 @@ Please provide a friendly, thorough analysis based on my specific request. Use b
       userContent = fileInfo;
     }
 
-    messages.push({ role: 'user', content: userContent });
+    // Build final query for local API
+    const finalQuery = contextualQuery + 'Current user request: ' + userContent;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('http://127.0.0.1:8000/o3-planner', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 1200,
+        user_query: finalQuery
       }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('OpenAI API error:', errorData);
-      throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+      const errorText = await response.text();
+      console.error('Local API error:', errorText);
+      throw new Error(`Local API error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
-    const aiResponse = data.choices[0].message.content;
+    const aiResponse = data.response;
 
     // Generate contextual quick actions based on the type of interaction
     let quickActions: string[] = [];
