@@ -73,6 +73,7 @@ Remember: Your sole purpose is to make O3 meetings more effective and strengthen
     if (file) {
       // Create a descriptive file context for the AI
       const fileInfo = `
+
 📎 **File Details:**
 - **Name:** ${file.name}
 - **Type:** ${file.type}
