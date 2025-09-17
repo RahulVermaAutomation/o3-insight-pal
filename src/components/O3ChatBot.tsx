@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { ChatMessage } from './ChatMessage';
 import { ChatHeader } from './ChatHeader';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Message {
   id: string;
@@ -60,109 +61,71 @@ What would you like to know or analyze today?`,
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputValue;
     setInputValue('');
     setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse = generateAIResponse(inputValue);
+    try {
+      // Build conversation history for context
+      const conversationHistory = messages.map(msg => ({
+        role: msg.type === 'user' ? 'user' : 'assistant',
+        content: msg.content
+      }));
+
+      const { data, error } = await supabase.functions.invoke('o3-chat', {
+        body: { 
+          message: currentInput,
+          conversationHistory: conversationHistory
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const aiResponse: Message = {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: data.response,
+        timestamp: new Date(),
+        quickActions: data.quickActions || []
+      };
+
       setMessages(prev => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('Error calling O3 chat:', error);
+      
+      // Fallback response
+      const fallbackResponse: Message = {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: `I apologize, but I'm having trouble connecting right now. Please try again in a moment. 
+
+In the meantime, I can help you with:
+• O3 conversation frameworks and best practices
+• Meeting analysis techniques
+• Manager-employee communication strategies
+
+Would you like to try your question again?`,
+        timestamp: new Date(),
+        quickActions: ['Try Again', 'O3 Information', 'Best Practices']
+      };
+      
+      setMessages(prev => [...prev, fallbackResponse]);
+      
+      toast({
+        title: "Connection Error",
+        description: "Unable to connect to AI service. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
       setIsLoading(false);
-    }, 2000);
+    }
   };
 
-  const generateAIResponse = (userInput: string): Message => {
-    const input = userInput.toLowerCase();
-
-    if (input.includes('what is o3') || input.includes('o3 is')) {
-      return {
-        id: Date.now().toString(),
-        type: 'ai',
-        content: `📋 **About O3**
-
-O3 stands for "One-on-One-One" - a structured conversation framework between employee, manager, and the AI assistant to enhance communication and identify actionable insights.
-
-**Key benefits include:**
-• Improved manager-employee communication
-• Early identification of concerns
-• Data-driven conversation insights
-• Structured follow-up actions
-• Enhanced employee engagement
-• Better manager coaching capabilities
-
-The framework creates a safe space for open dialogue while providing intelligent analysis to help both parties understand conversation dynamics and next steps.`,
-        timestamp: new Date(),
-        quickActions: ['Learn More', 'See Examples', 'Get Started Guide']
-      };
-    }
-
-    if (input.includes('best practices') || input.includes('how to improve')) {
-      return {
-        id: Date.now().toString(),
-        type: 'ai',
-        content: `💡 **O3 Best Practices**
-
-**For Managers:**
-• Create psychological safety - ensure open, judgment-free dialogue
-• Ask open-ended questions about challenges and goals
-• Listen actively and acknowledge concerns
-• Follow through on commitments made during conversations
-
-**For Employees:**
-• Come prepared with specific topics or concerns
-• Be honest about challenges and successes
-• Ask for specific feedback and support
-• Suggest solutions, not just problems
-
-**Conversation Starters:**
-• "What's been energizing you lately?"
-• "What obstacles are slowing you down?"
-• "How can I better support you?"
-• "What would you like to learn or improve?"`,
-        timestamp: new Date(),
-        quickActions: ['View Templates', 'Practice Scenarios', 'Manager Resources']
-      };
-    }
-
-    if (input.includes('upload') || input.includes('transcript') || input.includes('analyze')) {
-      return {
-        id: Date.now().toString(),
-        type: 'ai',
-        content: `📎 **Ready to Analyze**
-
-I'm ready to analyze your meeting transcript or recording! I can help identify:
-
-• Key discussion themes and topics
-• Emotional indicators and sentiment
-• Areas of concern or success
-• Communication patterns
-• Actionable next steps and recommendations
-
-**Supported formats:**
-• Audio: MP3, WAV, M4A (up to 50MB)
-• Text: TXT, DOCX, PDF transcripts
-• Copy & paste: Raw transcript text
-
-Simply upload your file or paste your transcript text, and I'll provide detailed insights and recommendations.`,
-        timestamp: new Date(),
-        quickActions: ['Upload File', 'Paste Transcript', 'Sample Analysis']
-      };
-    }
-
-    // Default response
-    return {
-      id: Date.now().toString(),
-      type: 'ai',
-      content: `I'd be happy to help! Could you provide more context about:
-
-• What specific aspect of O3 you'd like to know about?
-• Which meeting or interaction you'd like me to analyze?
-• What kind of insights you're looking for?
-
-I'm here to assist with O3 concepts, meeting analysis, and providing actionable guidance for better employee-manager interactions.`,
-      timestamp: new Date(),
-      quickActions: ['O3 Information', 'Meeting Analysis', 'Best Practices']
-    };
+  const handleQuickAction = (action: string) => {
+    setInputValue(action);
+    setTimeout(() => handleSendMessage(), 100);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -245,10 +208,6 @@ Would you like me to elaborate on any of these points or generate a detailed act
     });
   };
 
-  const handleQuickAction = (action: string) => {
-    setInputValue(action);
-    handleSendMessage();
-  };
 
   const clearChat = () => {
     const welcomeMessage: Message = {
