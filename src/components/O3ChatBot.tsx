@@ -35,17 +35,21 @@ export const O3ChatBot = () => {
     const welcomeMessage: Message = {
       id: '1',
       type: 'ai',
-      content: `Hello! I'm your O3 Assistant. 👋
+      content: `Hello! I'm your dedicated O3 Assistant. 👋
 
-I can help you with:
-• Understanding what O3 is and how it works
-• Analyzing meeting recordings or transcripts
-• Providing insights and next action items
-• Suggesting improvements for manager-employee interactions
+I'm here to help you excel in **One-on-One meetings** with:
+• O3 meeting frameworks and best practices
+• Manager-employee conversation strategies  
+• Meeting preparation and structure guidance
+• Feedback and career development discussions
+• Analyzing O3 meeting transcripts and recordings
+• Building stronger manager-employee relationships
 
-What would you like to know or analyze today?`,
+**Note:** I focus exclusively on O3 topics to provide you with the most specialized guidance possible.
+
+What O3 challenge can I help you with today?`,
       timestamp: new Date(),
-      quickActions: ['What is O3?', 'Upload Transcript', 'Get Best Practices']
+      quickActions: ['O3 Best Practices', 'Meeting Templates', 'Conversation Tips', 'Upload O3 Transcript']
     };
     setMessages([welcomeMessage]);
   }, []);
@@ -216,22 +220,26 @@ Just type your request and I'll take care of it for you. 😊`,
     const welcomeMessage: Message = {
       id: Date.now().toString(),
       type: 'ai',
-      content: `Hello! I'm your O3 Assistant. 👋
+      content: `Hello! I'm your dedicated O3 Assistant. 👋
 
-I can help you with:
-• Understanding what O3 is and how it works
-• Analyzing meeting recordings or transcripts
-• Providing insights and next action items
-• Suggesting improvements for manager-employee interactions
+I'm here to help you excel in **One-on-One meetings** with:
+• O3 meeting frameworks and best practices
+• Manager-employee conversation strategies  
+• Meeting preparation and structure guidance
+• Feedback and career development discussions
+• Analyzing O3 meeting transcripts and recordings
+• Building stronger manager-employee relationships
 
-What would you like to know or analyze today?`,
+**Note:** I focus exclusively on O3 topics to provide you with the most specialized guidance possible.
+
+What O3 challenge can I help you with today?`,
       timestamp: new Date(),
-      quickActions: ['What is O3?', 'Upload Transcript', 'Get Best Practices']
+      quickActions: ['O3 Best Practices', 'Meeting Templates', 'Conversation Tips', 'Upload O3 Transcript']
     };
     setMessages([welcomeMessage]);
     toast({
       title: "Chat cleared",
-      description: "Starting fresh conversation."
+      description: "Starting fresh O3 conversation."
     });
   };
 
@@ -304,7 +312,7 @@ What would you like to know or analyze today?`,
             <Input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Ask about O3, upload a file, or tell me what you'd like to analyze..."
+              placeholder="Ask about O3 meetings, upload transcripts, or get one-on-one guidance..."
               className="pr-20 rounded-full border-2 focus:border-ring"
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
             />
