@@ -45,8 +45,8 @@ All colors MUST be HSL.
     --ring: 213 94% 68%;
 
     /* AI Message Background */
-    --ai-message: 150 100% 97%; /* #F0FDF4 */
-    --ai-message-foreground: 160 90% 20%; /* #065F46 */
+    --ai-message: 0 0% 100%; /* #FFFFFF - White background */
+    --ai-message-foreground: 0 0% 0%; /* #000000 - Black text */
 
     --radius: 1rem;
 
