@@ -14,7 +14,7 @@ export const ChatHeader = ({ onClear }: ChatHeaderProps) => {
             <span className="text-primary-foreground font-bold text-lg">🎯</span>
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">O3 Assistant</h1>
+            <h1 className="text-xl font-bold text-foreground">O3 Assistant - Sarah</h1>
             <p className="text-sm text-muted-foreground">Smart Meeting Analysis & Insights</p>
           </div>
         </div>
