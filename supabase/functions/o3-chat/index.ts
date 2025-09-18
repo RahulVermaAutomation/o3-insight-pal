@@ -20,45 +20,66 @@ serve(async (req) => {
     // Limit conversation history to last 6 messages (3 exchanges) for better performance
     const recentHistory = conversationHistory?.slice(-6) || [];
     
-    // Prepare the user query with context for your custom API
-    let userQuery = message;
-    
-    // Add recent conversation context if available
-    if (recentHistory.length > 0) {
-      const contextSummary = recentHistory
-        .filter(msg => msg.role === 'user')
-        .slice(-2) // Only last 2 user messages for context
-        .map(msg => msg.content)
-        .join('; ');
-      
-      if (contextSummary) {
-        userQuery = `Context from recent conversation: ${contextSummary}. Current question: ${message}`;
-      }
-    }
-    
-    if (file) {
-      userQuery = `File uploaded: ${file.name} (${file.type}, ${(file.size / 1024).toFixed(2)} KB). User request: ${message}`;
-    }
+  // Prepare a compact user query for the external API
+  const latestMessage = (message || '').trim();
+  const recentUserMsgs = (recentHistory || [])
+    .filter((msg: any) => msg.role === 'user')
+    .map((msg: any) => (msg.content || '').trim());
+  const prevUserMsg = recentUserMsgs.slice(-2, -1)[0] || '';
 
-    // Call your custom O3 API
-    const apiUrl = `https://my-o3-agent-production-909d.up.railway.app/o3-planner?user_query=${encodeURIComponent(userQuery)}`;
-    
-    console.log('Calling API URL:', apiUrl);
-    console.log('User query being sent:', userQuery);
-    
+  let userQuery = prevUserMsg
+    ? `Context: ${prevUserMsg.slice(0, 300)}\nQuestion: ${latestMessage}`
+    : latestMessage;
+
+  if (file) {
+    userQuery = `File uploaded: ${file.name} (${file.type}, ${(file.size / 1024).toFixed(2)} KB). User request: ${latestMessage}`;
+  }
+
+  const MAX_QUERY_LEN = 1400;
+  if (userQuery.length > MAX_QUERY_LEN) {
+    userQuery = userQuery.slice(0, MAX_QUERY_LEN) + '…';
+  }
+
+    // Call your custom O3 API (prefer POST to avoid URL length issues)
+    const apiBase = 'https://my-o3-agent-production-909d.up.railway.app/o3-planner';
+    console.log('User query being sent (truncated/log):', userQuery.slice(0, 400));
+
     // Add timeout and better error handling
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
     
     try {
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        signal: controller.signal,
-      });
+      let response: Response | null = null;
+
+      // Attempt POST first
+      try {
+        response = await fetch(apiBase, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({ user_query: userQuery }),
+          signal: controller.signal,
+        });
+        console.log('POST request sent to', apiBase, 'status:', response.status, response.statusText);
+      } catch (postErr) {
+        console.error('POST call failed, will try GET fallback:', postErr);
+      }
+
+      // Fallback to GET with minimal query if POST failed or not ok
+      if (!response || !response.ok) {
+        const minimalQuery = latestMessage.slice(0, 800);
+        const getUrl = `${apiBase}?user_query=${encodeURIComponent(minimalQuery)}`;
+        console.log('Calling GET fallback URL:', getUrl);
+        response = await fetch(getUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+          signal: controller.signal,
+        });
+      }
       
       clearTimeout(timeoutId);
 
