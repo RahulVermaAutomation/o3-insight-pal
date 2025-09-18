@@ -40,46 +40,25 @@ serve(async (req) => {
     userQuery = userQuery.slice(0, MAX_QUERY_LEN) + '…';
   }
 
-    // Call your custom O3 API (prefer POST to avoid URL length issues)
+    // Prepare and call O3 API with GET using only the user's message
     const apiBase = 'https://my-o3-agent-production-909d.up.railway.app/o3-planner';
-    console.log('User query being sent (truncated/log):', userQuery.slice(0, 400));
+    const queryForApi = file ? userQuery : latestMessage;
+    const requestQuery = queryForApi.length > 1400 ? (queryForApi.slice(0, 1400) + '…') : queryForApi;
+    const requestUrl = `${apiBase}?user_query=${encodeURIComponent(requestQuery)}`;
+    console.log('Calling O3 API URL:', requestUrl);
 
     // Add timeout and better error handling
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
     
     try {
-      let response: Response | null = null;
-
-      // Attempt POST first
-      try {
-        response = await fetch(apiBase, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify({ user_query: userQuery }),
-          signal: controller.signal,
-        });
-        console.log('POST request sent to', apiBase, 'status:', response.status, response.statusText);
-      } catch (postErr) {
-        console.error('POST call failed, will try GET fallback:', postErr);
-      }
-
-      // Fallback to GET with minimal query if POST failed or not ok
-      if (!response || !response.ok) {
-        const minimalQuery = latestMessage.slice(0, 800);
-        const getUrl = `${apiBase}?user_query=${encodeURIComponent(minimalQuery)}`;
-        console.log('Calling GET fallback URL:', getUrl);
-        response = await fetch(getUrl, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-          },
-          signal: controller.signal,
-        });
-      }
+      const response = await fetch(requestUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        signal: controller.signal,
+      });
       
       clearTimeout(timeoutId);
 
@@ -90,8 +69,8 @@ serve(async (req) => {
         console.error('O3 API error details:', {
           status: response.status,
           statusText: response.statusText,
-          errorData: errorData,
-          url: apiUrl
+          errorData,
+          url: requestUrl,
         });
         
         // Return a graceful error instead of throwing
