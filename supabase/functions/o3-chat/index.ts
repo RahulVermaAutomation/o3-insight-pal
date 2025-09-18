@@ -55,10 +55,7 @@ serve(async (req) => {
           );
           
           sortedItems.forEach((item, index) => {
-            const relevancyEmoji = parseInt(item.relevency_score || '0') >= 8 ? '🎯' : 
-                                 parseInt(item.relevency_score || '0') >= 7 ? '📋' : '💡';
-            
-            formattedResponse += `${relevancyEmoji} **${item.Summary || 'Key Point'}**\n`;
+            formattedResponse += `**${item.Summary || 'Key Point'}**\n`;
             formattedResponse += `   ${item.explanation || 'No description available'}\n`;
             
             if (item.relevency_score) {
