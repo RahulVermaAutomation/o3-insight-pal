@@ -99,29 +99,55 @@ serve(async (req) => {
           console.log('Parsed array:', parsedArray);
           
           if (Array.isArray(parsedArray) && parsedArray.length > 0) {
-            // Check if array has meaningful content
+            // Check if array has meaningful content - support multiple response formats
             const hasValidContent = parsedArray.some(item => 
               (item.Summary && item.Summary !== 'Key Point') || 
-              (item.explanation && item.explanation !== 'No description available')
+              (item.explanation && item.explanation !== 'No description available') ||
+              (item.topic && item.highlight) || // Support the actual API format
+              (item.title && item.content)
             );
             
             if (hasValidContent) {
-              let formattedResponse = "Here's what I found about O3:\n\n";
+              let formattedResponse = "Here's your O3 summary analysis:\n\n";
               
-              // Sort by relevancy score (highest first)
-              const sortedItems = parsedArray.sort((a, b) => 
-                parseInt(b.relevency_score || '0') - parseInt(a.relevency_score || '0')
-              );
+              // Sort by satisfaction score if available, otherwise by relevancy score
+              const sortedItems = parsedArray.sort((a, b) => {
+                if (a.satisfaction_score && b.satisfaction_score) {
+                  return parseInt(b.satisfaction_score || '0') - parseInt(a.satisfaction_score || '0');
+                }
+                return parseInt(b.relevency_score || '0') - parseInt(a.relevency_score || '0');
+              });
               
               sortedItems.forEach((item, index) => {
-                const summary = item.Summary || item.title || item.heading || 'Key Point';
-                const explanation = item.explanation || item.content || item.description || 'No description available';
+                // Handle different response formats
+                let title, content, score, actionInfo;
                 
-                formattedResponse += `**${summary}**\n`;
-                formattedResponse += `   ${explanation}\n`;
+                if (item.topic && item.highlight) {
+                  // Handle the actual API format with topic/highlight structure
+                  title = item.topic;
+                  content = item.highlight;
+                  score = item.satisfaction_score;
+                  actionInfo = item.action && item.actor ? 
+                    `${item.action} (${item.actor})` : 
+                    item.action || null;
+                } else {
+                  // Handle generic format
+                  title = item.Summary || item.title || item.heading || 'Key Point';
+                  content = item.explanation || item.content || item.description || 'No description available';
+                  score = item.relevency_score;
+                  actionInfo = null;
+                }
                 
-                if (item.relevency_score) {
-                  formattedResponse += `   *Relevance: ${item.relevency_score}/10*\n`;
+                formattedResponse += `**${title}**\n`;
+                formattedResponse += `   ${content}\n`;
+                
+                if (score) {
+                  const scoreLabel = item.satisfaction_score ? 'Satisfaction' : 'Relevance';
+                  formattedResponse += `   *${scoreLabel}: ${score}/10*\n`;
+                }
+                
+                if (actionInfo) {
+                  formattedResponse += `   *Action: ${actionInfo}*\n`;
                 }
                 
                 if (index < sortedItems.length - 1) {
