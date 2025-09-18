@@ -40,7 +40,43 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const aiResponse = data.response || data.answer || data.result || JSON.stringify(data);
+    let aiResponse = data.response || data.answer || data.result || JSON.stringify(data);
+    
+    // Parse and format the response if it's a JSON array
+    try {
+      if (typeof aiResponse === 'string' && aiResponse.startsWith('[')) {
+        const parsedArray = JSON.parse(aiResponse);
+        if (Array.isArray(parsedArray)) {
+          let formattedResponse = "Here's what I found about O3:\n\n";
+          
+          // Sort by relevancy score (highest first)
+          const sortedItems = parsedArray.sort((a, b) => 
+            parseInt(b.relevency_score || '0') - parseInt(a.relevency_score || '0')
+          );
+          
+          sortedItems.forEach((item, index) => {
+            const relevancyEmoji = parseInt(item.relevency_score || '0') >= 8 ? '🎯' : 
+                                 parseInt(item.relevency_score || '0') >= 7 ? '📋' : '💡';
+            
+            formattedResponse += `${relevancyEmoji} **${item.Summary || 'Key Point'}**\n`;
+            formattedResponse += `   ${item.explanation || 'No description available'}\n`;
+            
+            if (item.relevency_score) {
+              formattedResponse += `   *Relevance: ${item.relevency_score}/10*\n`;
+            }
+            
+            if (index < sortedItems.length - 1) {
+              formattedResponse += '\n';
+            }
+          });
+          
+          aiResponse = formattedResponse;
+        }
+      }
+    } catch (parseError) {
+      console.log('Could not parse response as JSON array, using original response');
+      // Keep the original response if parsing fails
+    }
 
     // Generate contextual quick actions based on the type of interaction
     let quickActions: string[] = [];
