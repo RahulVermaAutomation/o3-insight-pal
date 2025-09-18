@@ -44,6 +44,7 @@ serve(async (req) => {
     const apiUrl = `https://my-o3-agent-production-909d.up.railway.app/o3-planner?user_query=${encodeURIComponent(userQuery)}`;
     
     console.log('Calling API URL:', apiUrl);
+    console.log('User query being sent:', userQuery);
     
     // Add timeout and better error handling
     const controller = new AbortController();
@@ -84,40 +85,66 @@ serve(async (req) => {
 
       const data = await response.json();
       
+      console.log('Raw API response data:', JSON.stringify(data, null, 2));
+      
       // Continue with the response processing
-      let aiResponse = data.response || data.answer || data.result || JSON.stringify(data);
+      let aiResponse = data.response || data.answer || data.result || data.message || data.content || JSON.stringify(data);
+      
+      console.log('Extracted AI response:', typeof aiResponse, aiResponse);
       
       // Parse and format the response if it's a JSON array
       try {
         if (typeof aiResponse === 'string' && aiResponse.startsWith('[')) {
           const parsedArray = JSON.parse(aiResponse);
-          if (Array.isArray(parsedArray)) {
-            let formattedResponse = "Here's what I found about O3:\n\n";
-            
-            // Sort by relevancy score (highest first)
-            const sortedItems = parsedArray.sort((a, b) => 
-              parseInt(b.relevency_score || '0') - parseInt(a.relevency_score || '0')
+          console.log('Parsed array:', parsedArray);
+          
+          if (Array.isArray(parsedArray) && parsedArray.length > 0) {
+            // Check if array has meaningful content
+            const hasValidContent = parsedArray.some(item => 
+              (item.Summary && item.Summary !== 'Key Point') || 
+              (item.explanation && item.explanation !== 'No description available')
             );
             
-            sortedItems.forEach((item, index) => {
-              formattedResponse += `**${item.Summary || 'Key Point'}**\n`;
-              formattedResponse += `   ${item.explanation || 'No description available'}\n`;
+            if (hasValidContent) {
+              let formattedResponse = "Here's what I found about O3:\n\n";
               
-              if (item.relevency_score) {
-                formattedResponse += `   *Relevance: ${item.relevency_score}/10*\n`;
-              }
+              // Sort by relevancy score (highest first)
+              const sortedItems = parsedArray.sort((a, b) => 
+                parseInt(b.relevency_score || '0') - parseInt(a.relevency_score || '0')
+              );
               
-              if (index < sortedItems.length - 1) {
-                formattedResponse += '\n';
-              }
-            });
-            
-            aiResponse = formattedResponse;
+              sortedItems.forEach((item, index) => {
+                const summary = item.Summary || item.title || item.heading || 'Key Point';
+                const explanation = item.explanation || item.content || item.description || 'No description available';
+                
+                formattedResponse += `**${summary}**\n`;
+                formattedResponse += `   ${explanation}\n`;
+                
+                if (item.relevency_score) {
+                  formattedResponse += `   *Relevance: ${item.relevency_score}/10*\n`;
+                }
+                
+                if (index < sortedItems.length - 1) {
+                  formattedResponse += '\n';
+                }
+              });
+              
+              aiResponse = formattedResponse;
+            } else {
+              console.log('Array contains no valid content, using original response');
+              // If the array doesn't have valid content, use the raw response
+              aiResponse = typeof data === 'string' ? data : JSON.stringify(data);
+            }
           }
+        } else if (typeof aiResponse === 'object') {
+          // If the response is an object, try to extract meaningful content
+          aiResponse = JSON.stringify(aiResponse, null, 2);
         }
       } catch (parseError) {
-        console.log('Could not parse response as JSON array, using original response');
+        console.log('Could not parse response as JSON array, error:', parseError.message);
+        console.log('Using original response as fallback');
         // Keep the original response if parsing fails
+        aiResponse = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
       }
 
       // Generate contextual quick actions based on the type of interaction
