@@ -42,9 +42,7 @@ serve(async (req) => {
 
     // Prepare and call O3 API with GET using only the user's message
     const apiBase = 'https://my-o3-agent-production-909d.up.railway.app/o3-planner';
-    const queryForApi = file ? userQuery : latestMessage;
-    const requestQuery = queryForApi.length > 1400 ? (queryForApi.slice(0, 1400) + '…') : queryForApi;
-    const requestUrl = `${apiBase}?user_query=${encodeURIComponent(requestQuery)}`;
+    const requestUrl = `${apiBase}?user_query=${encodeURIComponent(latestMessage)}`;
     console.log('Calling O3 API URL:', requestUrl);
 
     // Add timeout and better error handling
