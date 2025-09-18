@@ -15,10 +15,27 @@ serve(async (req) => {
   try {
     const { message, conversationHistory, file } = await req.json();
     
-    console.log('Received request:', { message, hasFile: !!file });
+    console.log('Received request:', { message, hasFile: !!file, historyLength: conversationHistory?.length || 0 });
 
-    // Prepare the user query for your custom API
+    // Limit conversation history to last 6 messages (3 exchanges) for better performance
+    const recentHistory = conversationHistory?.slice(-6) || [];
+    
+    // Prepare the user query with context for your custom API
     let userQuery = message;
+    
+    // Add recent conversation context if available
+    if (recentHistory.length > 0) {
+      const contextSummary = recentHistory
+        .filter(msg => msg.role === 'user')
+        .slice(-2) // Only last 2 user messages for context
+        .map(msg => msg.content)
+        .join('; ');
+      
+      if (contextSummary) {
+        userQuery = `Context from recent conversation: ${contextSummary}. Current question: ${message}`;
+      }
+    }
+    
     if (file) {
       userQuery = `File uploaded: ${file.name} (${file.type}, ${(file.size / 1024).toFixed(2)} KB). User request: ${message}`;
     }
