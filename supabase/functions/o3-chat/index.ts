@@ -26,17 +26,35 @@ serve(async (req) => {
     // Call your custom O3 API
     const apiUrl = `https://my-o3-agent-production-909d.up.railway.app/o3-planner?user_query=${encodeURIComponent(userQuery)}`;
     
+    console.log('Calling API URL:', apiUrl);
+    
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
     });
 
+    console.log('API Response status:', response.status, response.statusText);
+
     if (!response.ok) {
       const errorData = await response.text();
-      console.error('O3 API error:', errorData);
-      throw new Error(`O3 API error: ${response.status} ${response.statusText}`);
+      console.error('O3 API error details:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData: errorData,
+        url: apiUrl
+      });
+      
+      // Return a graceful error instead of throwing
+      return new Response(JSON.stringify({
+        response: `I apologize, but I'm having trouble connecting to my knowledge base right now (API returned ${response.status} error). This might be a temporary issue with the external service. Please try again in a moment, or feel free to ask me something else!`,
+        quickActions: ['Try Again', 'Ask Different Question', 'Contact Support'],
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const data = await response.json();
