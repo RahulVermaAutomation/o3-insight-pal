@@ -55,7 +55,7 @@ What O3 challenge can I help you with today?`,
   }, []);
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim()) return;
+    if (isLoading || !inputValue.trim()) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -103,20 +103,57 @@ What O3 challenge can I help you with today?`,
         setUploadedFile(null);
       }
 
-      const { data, error } = await supabase.functions.invoke('o3-chat', {
-        body: requestBody
+      const apiBase = 'https://my-o3-agent-production-909d.up.railway.app/o3-planner';
+      const requestUrl = `${apiBase}?user_query=${encodeURIComponent(currentInput)}`;
+      console.log('Calling O3 API (frontend):', requestUrl);
+
+      const resp = await fetch(requestUrl, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
       });
 
-      if (error) {
-        throw new Error(error.message);
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        throw new Error(`API error ${resp.status}: ${errorText}`);
+      }
+
+      let contentToShow: string;
+      const rawText = await resp.text();
+
+      try {
+        const parsed = JSON.parse(rawText);
+        if (Array.isArray(parsed)) {
+          const sorted = [...parsed].sort((a, b) => {
+            const sa = parseInt((a?.satisfaction_score ?? '0').toString());
+            const sb = parseInt((b?.satisfaction_score ?? '0').toString());
+            return sb - sa;
+          });
+          const parts = sorted.map((item: any) => {
+            const title = item.topic || item.Summary || item.title || 'Key Point';
+            const highlight = item.highlight || item.explanation || item.content || 'No description available';
+            const score = item.satisfaction_score || item.relevency_score;
+            const actionInfo = item?.action && item?.actor ? `${item.action} (${item.actor})` : item?.action || null;
+            return `**${title}**\n   ${highlight}` +
+              (score ? `\n   *${item.satisfaction_score ? 'Satisfaction' : 'Relevance'}: ${score}/10*` : '') +
+              (actionInfo ? `\n   *Action: ${actionInfo}*` : '');
+          });
+          contentToShow = `Here's your O3 summary analysis:\n\n${parts.join('\n\n')}`;
+        } else if (typeof parsed === 'object') {
+          contentToShow = parsed.response || parsed.answer || parsed.result || parsed.message || parsed.content || JSON.stringify(parsed, null, 2);
+        } else {
+          contentToShow = String(parsed);
+        }
+      } catch {
+        // Not JSON, use raw text
+        contentToShow = rawText;
       }
 
       const aiResponse: Message = {
         id: Date.now().toString(),
         type: 'ai',
-        content: data.response,
+        content: contentToShow,
         timestamp: new Date(),
-        quickActions: data.quickActions || []
+        quickActions: []
       };
 
       setMessages(prev => [...prev, aiResponse]);
